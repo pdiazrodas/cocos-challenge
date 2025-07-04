@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "Cocos": {
+      "Group": "Servers",
+      "Name": "Cocos DB",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "cocos",
+      "Username": "cocos_user",
+      "SSLMode": "prefer"
+    }
+  }
+}
