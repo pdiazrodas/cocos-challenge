@@ -16,7 +16,7 @@ export class MarketData {
   @JoinColumn({ name: 'instrumentId' })
   instrument: Instrument;
 
-  @Column()
+  @Column({ name: 'instrumentid' })
   instrumentId: number;
 
   @Column('decimal', { precision: 12, scale: 2 })
@@ -31,9 +31,9 @@ export class MarketData {
   @Column('decimal', { precision: 12, scale: 2 })
   close: number;
 
-  @Column('decimal', { precision: 12, scale: 2 })
+  @Column('decimal', { precision: 12, scale: 2, name: 'previousclose' })
   previousClose: number;
 
   @Column({ type: 'date' })
-  datetime: Date;
+  date: Date;
 }

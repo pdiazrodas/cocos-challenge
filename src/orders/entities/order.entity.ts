@@ -18,14 +18,14 @@ export class Order {
   @JoinColumn({ name: 'instrumentId' })
   instrument: Instrument;
 
-  @Column()
+  @Column({ name: 'instrumentid' })
   instrumentId: number;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column()
+  @Column({ name: 'userid' })
   userId: number;
 
   @Column()

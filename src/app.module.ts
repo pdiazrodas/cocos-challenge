@@ -6,6 +6,10 @@ import { UsersModule } from './users/users.module';
 import { OrdersModule } from './orders/orders.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { InstrumentsModule } from './instruments/instruments.module';
+import { User } from './users/entities/user.entity';
+import { Instrument } from './instruments/entities/instrument.entity';
+import { Order } from './orders/entities/order.entity';
+import { MarketData } from './common/entities/market-data.entity';
 
 @Module({
   imports: [
@@ -18,6 +22,7 @@ import { InstrumentsModule } from './instruments/instruments.module';
       database: process.env.PGDATABASE,
       synchronize: false,
       autoLoadEntities: true,
+      entities: [User, Instrument, Order, MarketData],
     }),
     UsersModule,
     InstrumentsModule,

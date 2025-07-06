@@ -17,6 +17,7 @@ Este proyecto tiene como objetivo resolver el desafío técnico propuesto por Co
 - 🧱 **Inicialización de la base mediante script `.sql`**: Se usó el mecanismo oficial del contenedor de PostgreSQL (`/docker-entrypoint-initdb.d/`) para poblar la base solo en el primer arranque con el script provisto en el challenge.
 - 🧘 **Implementación de Graceful Shutdown**: Se incorporó un patrón de apagado ordenado mediante captura de señales del sistema (SIGINT, SIGTERM), evitando nuevas entradas mientras se finalizan las requests activas. Este enfoque lo he aplicado previamente tanto en proyectos personales con Go como en entornos productivos usando NestJS (por ejemplo, durante mi tiempo en Modo), y garantiza mayor estabilidad ante interrupciones controladas.
 - 📂 **Estructura modular por recursos**: Los módulos `users`, `instruments`, `portfolio` y `orders` fueron generados y estructurados de forma independiente para facilitar escalabilidad y separación de responsabilidades.
+- 📝 **Mapeo explícito de entidades con nombres SQL en minúsculas**: Debido a que PostgreSQL convierte los nombres de columnas no entrecomillados a minúsculas por defecto, las entidades TypeORM fueron definidas utilizando `@Column({ name: '...' })` para asegurar compatibilidad total con el esquema generado por el script SQL original. Esto permite mantener nombres camelCase en el código TypeScript sin introducir ambigüedades ni errores al consultar.
 
 ## 🔐 Acceso a pgAdmin
 
