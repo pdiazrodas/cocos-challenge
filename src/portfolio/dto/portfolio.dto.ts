@@ -3,7 +3,6 @@ export class PortfolioPositionDto {
   ticker: string;
   name: string;
   type: string;
-
   quantity: number;
   marketValue: number;
   dailyReturnPercent: number;
