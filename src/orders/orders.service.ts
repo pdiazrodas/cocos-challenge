@@ -2,12 +2,13 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { BuyOrderStrategy } from './strategies/buy-order-strategy';
 import { Order } from './entities/order.entity';
+import { SellOrderStrategy } from './strategies/sell-order-strategy';
 
 @Injectable()
 export class OrdersService {
   constructor(
     private readonly buyOrderStrategy: BuyOrderStrategy,
-    // Próximo: private readonly sellOrderStrategy: SellOrderStrategy
+    private readonly sellOrderStrategy: SellOrderStrategy,
   ) {}
 
   public async submitOrder(dto: CreateOrderDto): Promise<Order> {
@@ -15,9 +16,7 @@ export class OrdersService {
       case 'BUY':
         return await this.buyOrderStrategy.execute(dto);
       case 'SELL':
-        throw new BadRequestException(
-          'Order side SELL is not implemented yet.',
-        );
+        return await this.sellOrderStrategy.execute(dto);
       // Future implementations could be included here. For example: CASH_IN, CASH_OUT, etc.
       default:
         throw new BadRequestException(

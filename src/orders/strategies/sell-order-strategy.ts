@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { CreateOrderDto } from '../dto/create-order.dto';
-import { Order } from '../entities/order.entity';
 import { OrderStrategy } from '../interfaces/order-strategy.interface';
+import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Instrument } from '../../instruments/entities/instrument.entity';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Order } from '../entities/order.entity';
 import { MarketData } from '../../common/entities/market-data.entity';
+import { CreateOrderDto } from '../dto/create-order.dto';
 
 enum OrderStatus {
   NEW = 'NEW',
@@ -14,75 +14,68 @@ enum OrderStatus {
   CANCELLED = 'CANCELLED',
 }
 
-const logger = new Logger('BuyOrderStrategy');
+const logger = new Logger('SellOrderStrategy');
 
 // TBD: An improvement could be to separate common methods into a base class or utility functions
 // to avoid code duplication between BuyOrderStrategy and SellOrderStrategy.
 // This would allow for better maintainability and reusability of code.
 
 @Injectable()
-export class BuyOrderStrategy implements OrderStrategy {
+export class SellOrderStrategy implements OrderStrategy {
   constructor(
     @InjectRepository(Instrument)
     private readonly instrumentRepo: Repository<Instrument>,
-    @InjectRepository(Order)
-    private readonly orderRepo: Repository<Order>,
+    @InjectRepository(Order) private readonly orderRepo: Repository<Order>,
     @InjectRepository(MarketData)
     private readonly marketdataRepo: Repository<MarketData>,
   ) {}
 
   async execute(dto: CreateOrderDto): Promise<Order> {
-    // Check that only size or investmentAmount is provided
-    this.validatePurchaseMode(dto);
+    this.validateSellMode(dto);
 
     // Check that instrument exists and is not of type MONEDA
     const instrument = await this.validateInstrument(dto.instrumentId);
-    let priceToUse: number;
-
-    logger.log('Instrument validated:', instrument);
 
     // If the order is MARKET, get the latest price. If not, use the provided price.
+    let priceToUse: number;
     if (dto.type === 'MARKET') {
       priceToUse = await this.getLatestPrice(dto.instrumentId);
     } else {
       priceToUse = dto.price!; // Price already validated by DTO for LIMIT orders
     }
 
-    // Calculate the size to use based depending if size or investmentAmount is provided
-    let sizeToUse = dto.size;
-    if (!sizeToUse && dto.investmentAmount) {
-      sizeToUse = Math.floor(dto.investmentAmount / priceToUse);
-      logger.log(
-        `Calculated size from investment amount: ${sizeToUse} shares at price ${priceToUse}`,
-      );
-    }
-
-    // At least one share must be bought
-    if (!sizeToUse || sizeToUse === 0) {
-      logger.log(
-        `Order rejected: Size to use is ${sizeToUse}, which does not allow buying at least one share.`,
-      );
-      return this.buildRejectedOrder(dto, priceToUse, sizeToUse ?? 0);
-    }
-
-    // Calculate the total cost of the order and check the user has enough cash
-    const totalCost = sizeToUse * priceToUse;
-    const availableCash = await this.getAvailableCash(dto.userId);
-
     logger.log(
-      `Total cost: ${totalCost}, Available cash: ${availableCash}, Price to use: ${priceToUse}`,
+      `Instrument validated: ${instrument.ticker}, Price to use: ${priceToUse}`,
     );
 
-    if (totalCost > availableCash) {
+    // Calculate the available shares for selling
+    const availableShares = await this.getAvailableShares(
+      dto.userId,
+      dto.instrumentId,
+    );
+
+    let sizeToUse: number;
+    if (!dto.size && dto.investmentAmount) {
+      sizeToUse = Math.floor(dto.investmentAmount / priceToUse);
+    } else {
+      sizeToUse = dto.size!; // Size already validated by DTO
+    }
+
+    // If the size to use exceeds available shares, reject the order
+    if (sizeToUse > availableShares) {
       logger.log(
-        `Order rejected: Insufficient funds. Total cost ${totalCost} exceeds available cash ${availableCash}.`,
+        `Order rejected: Selling ${sizeToUse} exceeds available shares (${availableShares})`,
       );
-      return this.buildRejectedOrder(dto, priceToUse, sizeToUse);
+      return await this.buildRejectedOrder(dto, priceToUse, sizeToUse);
     }
 
     // Set the order status based on the type
     const statusToSet =
       dto.type === 'MARKET' ? OrderStatus.FILLED : OrderStatus.NEW;
+
+    logger.log(
+      `Order accepted: Selling ${sizeToUse} at ${priceToUse}, Status: ${statusToSet}`,
+    );
 
     return await this.buildAcceptedOrder(
       dto,
@@ -135,23 +128,24 @@ export class BuyOrderStrategy implements OrderStrategy {
     return Number(close);
   }
 
-  private async getAvailableCash(userId: number): Promise<number> {
+  private async getAvailableShares(
+    userId: number,
+    instrumentId: number,
+  ): Promise<number> {
     const rawQuery = `
     SELECT SUM(
       CASE 
-        WHEN side = 'CASH_IN' THEN size * price
-        WHEN side = 'SELL' THEN size * price
-        WHEN side = 'CASH_OUT' THEN -1 * size * price
-        WHEN side = 'BUY' THEN -1 * size * price
+        WHEN side = 'BUY' THEN size
+        WHEN side = 'SELL' THEN -1 * size
         ELSE 0
       END
-    ) AS available_cash
+    ) AS available_shares
     FROM orders
-    WHERE userid = $1 AND status = 'FILLED';
+    WHERE userid = $1 AND instrumentid = $2 AND status = 'FILLED';
   `;
 
-    const result = await this.orderRepo.query(rawQuery, [userId]);
-    return Number(result[0]?.available_cash ?? 0);
+    const result = await this.orderRepo.query(rawQuery, [userId, instrumentId]);
+    return Number(result[0]?.available_shares ?? 0);
   }
 
   private async buildRejectedOrder(
@@ -193,7 +187,7 @@ export class BuyOrderStrategy implements OrderStrategy {
     return await this.orderRepo.save(order);
   }
 
-  private validatePurchaseMode(dto: CreateOrderDto): void {
+  private validateSellMode(dto: CreateOrderDto): void {
     const hasSize = dto.size !== undefined;
     const hasAmount = dto.investmentAmount !== undefined;
 

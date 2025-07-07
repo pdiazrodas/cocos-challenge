@@ -147,7 +147,7 @@ FROM positions;
 - Las columnas se transformaron mediante @Column({ name: ... }) por compatibilidad con el esquema SQL en minúsculas
 - Se mantiene consistencia y estilo uniforme para facilitar testing, mantenimiento y validación
 
-## 🔍 Servicio de búsqueda de instrumentos
+## 🔍 Servicio de búsqueda de instrumentos (/portfolio)
 
 Se implementó el método `InstrumentService.search(searchTerm)` con el objetivo de ofrecer una búsqueda más intuitiva y robusta, desambiguando términos con acentos y filtrando resultados irrelevantes.
 
@@ -173,3 +173,126 @@ WHERE type != 'currency' AND (
 - La extensión unaccent se habilita automáticamente al iniciar la base, gracias a su inclusión en el script ubicado en /docker-entrypoint-initdb.d/
 - La búsqueda es case-insensitive y tolerante a acentos, mejorando la experiencia del usuario final
 - El resultado se devuelve como un array de objetos Instrument, listo para consumir desde el frontend
+
+## 🔍 Servicio de creación de órdenes (/orders)
+
+### 1. ✨ Descripción general
+
+- Se implementó un endpoint POST /orders que permite registrar órdenes de tipo BUY o SELL en modalidad MARKET o LIMIT.
+- El usuario puede enviar la cantidad exacta de acciones (size) o un monto total de inversión (investmentAmount). No se admiten fracciones.
+- Toda orden es persistida, incluso si es rechazada por reglas de negocio.
+
+### 2. 🧠 Lógica aplicada
+
+- Validación del instrumento (existe y no es tipo MONEDA)
+- Obtención de último precio si la orden es MARKET
+- Cálculo de sizeToUse (cantidad) si se envía un monto
+- Validación financiera:
+  - BUY: usuario debe tener suficiente availableCash (dinero disponible)
+  - SELL: usuario debe tener suficiente availableShares (acciones disponibles)
+- Determinación del estado:
+  - FILLED si se ejecuta
+  - NEW si queda pendiente (LIMIT)
+  - REJECTED si no cumple requisitos
+
+Ejemplo de SQL utilizado:
+
+```sql
+-- Obtiene el último precio de cierre para un instrumento
+SELECT close
+FROM marketdata
+WHERE instrumentid = $1
+  AND date = (
+    SELECT MAX(date)
+    FROM marketdata
+    WHERE instrumentid = $1
+  );
+```
+
+Uso:
+
+- Se aplica en órdenes MARKET para determinar el precio de ejecución
+- Compartido por BuyOrderStrategy y SellOrderStrategy
+
+```sql
+-- Calcula la cantidad de acciones disponibles para vender
+SELECT SUM(
+  CASE
+    WHEN side = 'BUY' THEN size       -- Compra suma a tenencia
+    WHEN side = 'SELL' THEN -1 * size -- Venta resta
+    ELSE 0
+  END
+) AS available_shares
+FROM orders
+WHERE userid = $1 AND instrumentid = $2 AND status = 'FILLED';
+```
+
+Uso:
+
+- Se utiliza para validar si el usuario tiene suficientes acciones para ejecutar una orden de venta
+- Contempla solo órdenes ejecutadas (FILLED) para reflejar tenencia real
+
+### 3. 📦 Estructura esperada de la orden enviada
+
+```json
+{
+  "userId": 1,
+  "instrumentId": 2,
+  "side": "BUY",
+  "type": "MARKET",
+  "size": 10
+}
+```
+
+🔄 O bien:
+
+```json
+{
+  "userId": 1,
+  "instrumentId": 2,
+  "side": "SELL",
+  "type": "LIMIT",
+  "investmentAmount": 5000,
+  "price": 265
+}
+```
+
+### 4. 🧱 Detalles técnicos
+
+- Se aplican validaciones condicionales en el DTO para asegurar que se envíe size o investmentAmount, pero no ambos.
+- Los strategies BuyOrderStrategy y SellOrderStrategy encapsulan toda la lógica con métodos auxiliares reutilizables.
+- Se utiliza rawQuery para los cálculos financieros (availableCash, availableShares).
+- Las órdenes se graban en la tabla orders con estado según resultado de validación.
+
+### 5. Tests y validaciones funcionales
+
+#### 🔬 Testing manual
+
+Se probó la aplicación enviando órdenes de compra y venta por cantidad y por monto
+
+Se validó que:
+
+- Las órdenes se registren correctamente en PostgreSQL
+- El endpoint portfolio refleje los cambios financieros con precisión
+- El endpoint /orders retorne estados esperados (FILLED, NEW, REJECTED)
+
+#### 🧪 Casos cubiertos
+
+| Tipo de orden | Modalidad | Condición             | Resultado esperado |
+| ------------- | --------- | --------------------- | ------------------ |
+| BUY           | MARKET    | Fondos suficientes    | FILLED             |
+| BUY           | MARKET    | Fondos insuficientes  | REJECTED           |
+| BUY           | LIMIT     | Fondos suficientes    | NEW                |
+| BUY           | LIMIT     | Fondos insuficientes  | REJECTED           |
+| SELL          | MARKET    | Tenencia suficiente   | FILLED             |
+| SELL          | MARKET    | Tenencia insuficiente | REJECTED           |
+| SELL          | LIMIT     | Tenencia suficiente   | NEW                |
+| SELL          | LIMIT     | Tenencia insuficiente | REJECTED           |
+
+#### ⚖️ Consideración sobre órdenes LIMIT
+
+Las órdenes de tipo LIMIT no se ejecutan inmediatamente ni bloquean las posiciones del usuario. Por lo tanto:
+
+- Es posible registrar múltiples órdenes LIMIT sobre una misma tenencia
+- Este comportamiento refleja distintas intenciones de venta con precio definido
+- La ejecución o cancelación de estas órdenes excede el alcance del challenge
