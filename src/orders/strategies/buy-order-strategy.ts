@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { Order } from '../entities/order.entity';
 import { OrderStrategy } from '../interfaces/order-strategy.interface';
@@ -14,6 +14,8 @@ enum OrderStatus {
   CANCELLED = 'CANCELLED',
 }
 
+const logger = new Logger('BuyOrderStrategy');
+
 @Injectable()
 export class BuyOrderStrategy implements OrderStrategy {
   constructor(
@@ -26,21 +28,14 @@ export class BuyOrderStrategy implements OrderStrategy {
   ) {}
 
   async execute(dto: CreateOrderDto): Promise<Order> {
-    // 1. Validar que el instrumento existe
-    // 2. Obtener último precio si es MARKET
-    // 3. Calcular el monto necesario (price × size)
-    // 4. Verificar que el usuario tenga el cash disponible
-    // 5. Si todo OK:
-    //    - Si MARKET → estado = FILLED
-    //    - Si LIMIT → estado = NEW
-    // 6. Si no cumple, devolver estado REJECTED
-    // 7. Crear y retornar entidad Order
+    // Check that only size or investmentAmount is provided
+    this.validatePurchaseMode(dto);
 
     // Check that instrument exists and is not of type MONEDA
     const instrument = await this.validateInstrument(dto.instrumentId);
     let priceToUse: number;
 
-    console.log('Instrument validated:', instrument);
+    logger.log('Instrument validated:', instrument);
 
     // If the order is MARKET, get the latest price. If not, use the provided price.
     if (dto.type === 'MARKET') {
@@ -49,27 +44,48 @@ export class BuyOrderStrategy implements OrderStrategy {
       priceToUse = dto.price!; // Price already validated by DTO for LIMIT orders
     }
 
+    // Calculate the size to use based depending if size or investmentAmount is provided
+    let sizeToUse = dto.size;
+    if (!sizeToUse && dto.investmentAmount) {
+      sizeToUse = Math.floor(dto.investmentAmount / priceToUse);
+      logger.log(
+        `Calculated size from investment amount: ${sizeToUse} shares at price ${priceToUse}`,
+      );
+    }
+
+    // At least one share must be bought
+    if (!sizeToUse || sizeToUse === 0) {
+      logger.log(
+        `Order rejected: Size to use is ${sizeToUse}, which does not allow buying at least one share.`,
+      );
+      return this.buildRejectedOrder(dto, priceToUse, sizeToUse ?? 0);
+    }
+
     // Calculate the total cost of the order and check the user has enough cash
-    const totalCost = dto.size * priceToUse;
+    const totalCost = sizeToUse * priceToUse;
     const availableCash = await this.getAvailableCash(dto.userId);
 
-    console.log(
+    logger.log(
       `Total cost: ${totalCost}, Available cash: ${availableCash}, Price to use: ${priceToUse}`,
     );
 
     if (totalCost > availableCash) {
-      return this.buildRejectedOrder(
-        dto,
-        priceToUse,
-        'Insufficient funds to execute the order.',
+      logger.log(
+        `Order rejected: Insufficient funds. Total cost ${totalCost} exceeds available cash ${availableCash}.`,
       );
+      return this.buildRejectedOrder(dto, priceToUse, sizeToUse);
     }
 
     // Set the order status based on the type
     const statusToSet =
       dto.type === 'MARKET' ? OrderStatus.FILLED : OrderStatus.NEW;
 
-    return await this.buildAcceptedOrder(dto, priceToUse, statusToSet);
+    return await this.buildAcceptedOrder(
+      dto,
+      priceToUse,
+      statusToSet,
+      sizeToUse,
+    );
   }
 
   private async validateInstrument(instrumentId: number): Promise<Instrument> {
@@ -137,14 +153,14 @@ export class BuyOrderStrategy implements OrderStrategy {
   private async buildRejectedOrder(
     dto: CreateOrderDto,
     price: number,
-    reason?: string, // optional, for future posible extension
+    size: number,
   ): Promise<Order> {
     const order = this.orderRepo.create({
       userId: dto.userId,
       instrumentId: dto.instrumentId,
       side: dto.side,
       type: dto.type,
-      size: dto.size,
+      size,
       price,
       status: OrderStatus.REJECTED,
       datetime: new Date(),
@@ -157,18 +173,36 @@ export class BuyOrderStrategy implements OrderStrategy {
     dto: CreateOrderDto,
     price: number,
     status: string,
+    size: number,
   ): Promise<Order> {
     const order = this.orderRepo.create({
       userId: dto.userId,
       instrumentId: dto.instrumentId,
       side: dto.side,
       type: dto.type,
-      size: dto.size,
+      size,
       price,
       status,
       datetime: new Date(),
     });
 
     return await this.orderRepo.save(order);
+  }
+
+  private validatePurchaseMode(dto: CreateOrderDto): void {
+    const hasSize = dto.size !== undefined;
+    const hasAmount = dto.investmentAmount !== undefined;
+
+    if (hasSize && hasAmount) {
+      throw new BadRequestException(
+        'You must provide either size or investment amount, not both.',
+      );
+    }
+
+    if (!hasSize && !hasAmount) {
+      throw new BadRequestException(
+        'You must specify either size or investment amount for the order.',
+      );
+    }
   }
 }

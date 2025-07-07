@@ -13,9 +13,15 @@ export class CreateOrderDto {
   @IsIn(['MARKET', 'LIMIT'])
   type: 'MARKET' | 'LIMIT';
 
+  @ValidateIf((o) => !o.investmentAmount)
   @IsNumber()
   @IsPositive()
-  size: number;
+  size?: number;
+
+  @ValidateIf((o) => !o.size)
+  @IsNumber()
+  @IsPositive()
+  investmentAmount?: number;
 
   @ValidateIf((o) => o.type === 'LIMIT')
   @IsNumber()
