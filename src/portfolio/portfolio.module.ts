@@ -3,11 +3,9 @@ import { PortfolioService } from './portfolio.service';
 import { PortfolioController } from './portfolio.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Order } from '../orders/entities/order.entity';
-import { MarketData } from '../common/entities/market-data.entity';
-import { Instrument } from '../instruments/entities/instrument.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Order, MarketData, Instrument])],
+  imports: [TypeOrmModule.forFeature([Order])],
   controllers: [PortfolioController],
   providers: [PortfolioService],
 })

@@ -1,26 +1,32 @@
 import { Injectable } from '@nestjs/common';
-import { CreateInstrumentDto } from './dto/create-instrument.dto';
-import { UpdateInstrumentDto } from './dto/update-instrument.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Instrument } from './entities/instrument.entity';
+import { InstrumentSearchDto } from './dto/instruments-search.dto';
 
 @Injectable()
 export class InstrumentsService {
-  create(createInstrumentDto: CreateInstrumentDto) {
-    return 'This action adds a new instrument';
-  }
+  constructor(
+    @InjectRepository(Instrument)
+    private readonly instrumentRepo: Repository<Instrument>,
+  ) {}
 
-  findAll() {
-    return `This action returns all instruments`;
-  }
+  public async searchByTerm(term: string): Promise<InstrumentSearchDto[]> {
+    const rawQuery = `
+      SELECT id, ticker, name, type
+      FROM instruments
+      WHERE type != 'MONEDA'
+        AND (unaccent(ticker) ILIKE unaccent('%' || $1 || '%')
+         OR unaccent(name) ILIKE unaccent('%' || $1 || '%'));
+    `;
 
-  findOne(id: number) {
-    return `This action returns a #${id} instrument`;
-  }
+    const results = await this.instrumentRepo.query(rawQuery, [term]);
 
-  update(id: number, updateInstrumentDto: UpdateInstrumentDto) {
-    return `This action updates a #${id} instrument`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} instrument`;
+    return results.map((r) => ({
+      id: r.id,
+      ticker: r.ticker,
+      name: r.name,
+      type: r.type,
+    }));
   }
 }
