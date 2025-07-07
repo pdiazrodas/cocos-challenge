@@ -4,7 +4,7 @@ import {
   gracefulShutdownMiddleware,
   setShuttingDown,
 } from './middleware/graceful-shutdown.middleware';
-import { Logger } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 
 const logger = new Logger('Bootstrap');
 
@@ -13,6 +13,7 @@ async function bootstrap() {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
   });
   app.use(gracefulShutdownMiddleware);
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
   await app.listen(process.env.PORT ?? 3000);
   logger.log('🚀 Server started on port 3000');

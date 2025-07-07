@@ -18,6 +18,7 @@ Este proyecto tiene como objetivo resolver el desafío técnico propuesto por Co
 - 🧘 **Implementación de Graceful Shutdown**: Se incorporó un patrón de apagado ordenado mediante captura de señales del sistema (SIGINT, SIGTERM), evitando nuevas entradas mientras se finalizan las solicitudes http activas. Este enfoque garantiza mayor estabilidad ante interrupciones controladas.
 - 📂 **Estructura modular por recursos**: Los módulos `users`, `instruments`, `portfolio` y `orders` fueron generados y estructurados de forma independiente para facilitar escalabilidad y separación de responsabilidades.
 - 📝 **Mapeo explícito de entidades con nombres SQL en minúsculas**: Debido a que PostgreSQL convierte los nombres de columnas no entrecomillados a minúsculas por defecto, las entidades TypeORM fueron definidas utilizando `@Column({ name: '...' })` para asegurar compatibilidad total con el esquema generado por el script SQL original. Esto permite mantener nombres camelCase en el código TypeScript sin introducir ambigüedades ni errores al consultar.
+- 🧠 Uso del esquema original sin modificaciones estructurales: La implementación se basa íntegramente en las tablas, campos y datos provistos en el archivo database.sql del challenge. No se han introducido índices adicionales ni alteraciones en la estructura de la base. Todas las consultas, joins y filtrados fueron diseñados para operar de forma eficiente sobre el esquema propuesto, maximizando claridad y mantenibilidad sin comprometer compatibilidad con la base original.
 
 ## 🔐 Acceso a pgAdmin
 
@@ -53,6 +54,7 @@ Se implementó el servicio `PortfolioService.getPortfolioForUser(userId)` con lo
 - Órdenes relevantes: `CASH_IN`, `SELL`, `CASH_OUT`, `BUY` con estado `FILLED`
 - Fórmula: `size × price`, con signo según tipo de orden
 - Ejecutado como `rawQuery` por claridad y reproducibilidad (mismo SQL que en pgAdmin)
+- No se realiza validación de existencia de usuario dado que eso sería parte de lógica de autenticación, la cual no es necesaria según la consiga.
 
 Ejemplo de SQL utilizado:
 
