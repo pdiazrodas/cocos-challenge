@@ -2,6 +2,18 @@
 
 Este proyecto tiene como objetivo resolver el desafío técnico propuesto por Cocos Capital utilizando tecnologías modernas y buenas prácticas de desarrollo, priorizando reproducibilidad, robustez y claridad.
 
+## 🛠️ Requisitos previos
+
+Antes de comenzar, asegurate de contar con alguno de los siguientes entornos listos y funcionando:
+
+- Windows con WSL2 y Docker Desktop instalado y ejecutándose.
+  - ⚠️ Recordá habilitar la integración con WSL2 desde Docker Desktop si usás Ubuntu o similar.
+
+- Linux o macOS con Docker y Docker Compose instalados.
+  - 🐳 Docker incluye docker compose a partir de versiones recientes, por lo que no necesitas instalarlo por separado.
+
+✅ El entorno fue diseñado para ejecutarse en contenedores, por lo que no necesitas instalar Node.js ni PostgreSQL localmente.
+
 ## 🚀 Tecnologías utilizadas
 
 - **NestJS**: Framework backend en Node.js con estructura modular, soporte para TypeORM y testeo integrado.
@@ -43,6 +55,24 @@ La conexión a la base está preconfigurada. Si se requiere ingresar manualmente
 ```bash
 docker-compose up --build
 ```
+
+## 📬 Colección Postman
+
+Para facilitar el testing manual de los endpoints, se incluye una colección de Postman lista para importar:
+
+```
+Cocos Backend Challenge.postman_collection
+```
+
+📁 La colección se encuentra en la raíz del proyecto y cubre:
+
+- 📘 Endpoints para órdenes (POST /orders)
+
+- 🔎 Búsqueda de instrumentos (GET /instruments/search)
+
+- 💼 Consulta de portafolio (GET /portfolio?userId=...)
+
+Importala en Postman y usala como referencia para construir o validar requests fácilmente. Todos los ejemplos están alineados con los DTOs y validaciones de NestJS.
 
 ## 🧮 Construcción del endpoint de Portfolio
 
