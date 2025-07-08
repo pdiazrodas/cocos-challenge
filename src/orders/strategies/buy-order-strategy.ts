@@ -124,7 +124,7 @@ export class BuyOrderStrategy implements OrderStrategy {
     const result = await this.marketdataRepo.query(rawQuery, [instrumentId]);
     const close = result[0]?.close;
 
-    console.log(`Latest price for instrument ${instrumentId}:`, close);
+    logger.log(`Latest price for instrument ${instrumentId}: ${close}`);
 
     if (!close) {
       throw new BadRequestException(

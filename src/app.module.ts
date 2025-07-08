@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { UsersModule } from './users/users.module';
 import { OrdersModule } from './orders/orders.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { InstrumentsModule } from './instruments/instruments.module';
@@ -24,7 +23,6 @@ import { MarketData } from './common/entities/market-data.entity';
       autoLoadEntities: true,
       entities: [User, Instrument, Order, MarketData],
     }),
-    UsersModule,
     InstrumentsModule,
     PortfolioModule,
     OrdersModule,
